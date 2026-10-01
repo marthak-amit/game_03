@@ -87,7 +87,7 @@ const Game = (() => {
     cam.x = 0; cam.y = 0; shake = 0; flash = 0; input.touch = null;
     Sfx.mute(!!demo);
     if (demo) { for (let i = 0; i < 60; i++) { const a = rnd(0, TAU), d = rnd(110, 480); spawnEnemy(pickType(), Math.cos(a) * d, Math.sin(a) * d); } return; }
-    intro = 1; flash = 0.45; Sfx.setMode('play'); Sfx.refresh(); Sfx.play('start'); Haptic(30);
+    intro = 1; flash = 0.45; Sfx.release(); Sfx.refresh(); Haptic(30);
     UI.showHud(true); UI.banner('⚡ SURVIVE!');
     Track.ev('run_start', { hero: d.char });
   }
@@ -512,7 +512,7 @@ const Game = (() => {
     let dt = Math.min(0.05, (now - last) / 1000); last = now;
     if (G.state === 'menu') {
       menuT += dt;
-      if (G.demo && P && !document.hidden) { update(dt); cam.x += (P.x - cam.x) * Math.min(1, dt * 1.1); cam.y += (P.y - cam.y) * Math.min(1, dt * 1.1); }
+      if (G.demo && P && !document.hidden) { update(dt * 0.5); cam.x += (P.x - cam.x) * Math.min(1, dt * 1.1); cam.y += (P.y - cam.y) * Math.min(1, dt * 1.1); }
     }
     if (intro > 0) intro = Math.max(0, intro - dt * 1.1);
     if (G.state === 'play' || G.state === 'dead') {
@@ -531,14 +531,15 @@ const Game = (() => {
     G, get P() { return P; }, dbg() { return { P, enemies, gems }; },
     start() { Sfx.init(); startRun(false); },
     startDemo() { startRun(true); },
-    pause() { if (G.state === 'play') { G.state = 'paused'; input.touch = null; UI.pause(true); } },
-    resume() { if (G.state === 'paused') { G.state = 'play'; UI.pause(false); } },
+    setDemoHero() { if (G.demo && P) P.col = HEROES[Save.d.char].color; },
+    pause() { if (G.state === 'play') { G.state = 'paused'; input.touch = null; Sfx.hold(); UI.pause(true); } },
+    resume() { if (G.state === 'paused') { G.state = 'play'; Sfx.release(); UI.pause(false); } },
     togglePause() { G.state === 'play' ? Game.pause() : G.state === 'paused' && Game.resume(); },
     pick(i) { applyChoice(G.choices[i]); G.choices = null; G.state = 'play'; if (G.pending > 0) openLevelUp(); else UI.hideLevelUp(); },
     reroll() { G.choices = buildChoices(); UI.levelUp(G.choices, null); },
     pickRandom() { if (G.state === 'levelup' && G.choices) Game.pick(Math.floor(Math.random() * G.choices.length)); },
     summary, commit, revive() { revive(); }, quit() { Game.toMenu(); },
     addCoins(n) { G.coins += n; },
-    toMenu() { Sfx.setMode('menu'); UI.showHud(false); startRun(true); },
+    toMenu() { Sfx.release(); UI.showHud(false); startRun(true); },
   };
 })();

@@ -106,3 +106,19 @@ h1.logo{animation:logoglow 3s ease-in-out infinite}
 .heropick .ship{width:84px;height:84px;animation:floaty 2.4s ease-in-out infinite}
 @keyframes floaty{50%{transform:translateY(-8px) rotate(-4deg)}}
 .home{gap:12px}
+
+.ico{position:relative;display:inline-block;line-height:1}
+.ico.off{opacity:.6}.ico.off::after{content:'';position:absolute;left:-3px;right:-3px;top:50%;height:3px;border-radius:2px;background:#ff4466;transform:rotate(-40deg);box-shadow:0 0 0 1px #0007}
+.btn.muted{opacity:.8}
+#celebrate{position:fixed;inset:0;z-index:35;pointer-events:none;overflow:hidden;background:radial-gradient(circle at 50% 38%,rgba(95,62,0,.93),rgba(3,2,15,.97) 78%);animation:celin .25s ease-out}
+#celebrate.out{opacity:0;transition:opacity .3s}
+@keyframes celin{from{opacity:0}}
+#celebrate i{position:absolute;top:-20px;width:9px;height:16px;border-radius:2px;animation:fall linear forwards}
+@keyframes fall{to{top:105%;transform:translateX(30px) rotate(900deg)}}
+.cel{position:absolute;left:0;right:0;top:20%;text-align:center;animation:celpop .6s cubic-bezier(.2,1.6,.4,1)}
+@keyframes celpop{from{transform:scale(.2);opacity:0}}
+.trophy{font-size:96px;filter:drop-shadow(0 0 24px #ffd23c);animation:bounce .5s ease-in-out infinite alternate}
+@keyframes bounce{to{transform:translateY(-14px) scale(1.06)}}
+.celtitle{font-size:30px;font-weight:900;letter-spacing:2px;color:#ffd23c;text-shadow:0 0 20px #f90,0 3px 0 #7a4a00}
+.celtime{font-size:54px;font-weight:900;text-shadow:0 0 18px #ffd23c}
+.celsub{margin-top:6px;font-weight:700;opacity:.95}

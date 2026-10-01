@@ -21,8 +21,9 @@ window.CONFIG = {
   },
 
   // Ad pacing (protects retention => protects long-term revenue)
-  INTERSTITIAL_AFTER_RUNS: 3,     // no interstitials for the first N runs
-  INTERSTITIAL_COOLDOWN_MS: 90000,
+  INTERSTITIAL_AFTER_RUNS: 2,     // no interstitials for the first N runs (raise to 3-4 for release)
+  INTERSTITIAL_COOLDOWN_MS: 60000,
+  BANNER_ENABLED: false,          // no banner: keeps the Home screen ad-free
   REWARDED_DAILY_CAP_FREE_COINS: 5,
   REWARDED_DAILY_CAP_SPIN: 5,
 

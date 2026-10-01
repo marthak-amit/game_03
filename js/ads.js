@@ -14,7 +14,7 @@ const Ads = (() => {
     if (!native()) return null;
     try { return plugins.AdMob || (plugins.AdMob = window.Capacitor.registerPlugin('AdMob')); } catch (e) { return null; }
   };
-  let bannerOn = false;
+  let bannerOn = false, lastErr = '';
 
   // ---------- Mock provider (dev / web demo) ----------
   function mockAd(kind, done) {
@@ -42,13 +42,13 @@ const Ads = (() => {
     const T = C.ADMOB.testing, handles = []; let finished = false, rewarded = false;
     const finish = ok => { if (finished) return; finished = true; handles.forEach(h => { try { h.remove(); } catch (e) {} }); setTimeout(() => done(ok), 50); };
     const on = async (ev, fn) => handles.push(await A.addListener(ev, fn));
-    const noAd = () => { UI.toast('Ad not available right now. Try again in a moment.'); };
+    const noAd = (why) => { lastErr = String(why || 'no fill'); UI.toast('Ad not available: ' + lastErr.slice(0, 60)); };
     try {
       if (kind === 'rewarded') {
         await on('onRewardedVideoAdReward', () => { rewarded = true; });
         await on('onRewardedVideoAdDismissed', () => finish(rewarded));
-        await on('onRewardedVideoAdFailedToShow', () => { noAd(); finish(false); });
-        await on('onRewardedVideoAdFailedToLoad', () => { noAd(); finish(false); });
+        await on('onRewardedVideoAdFailedToShow', e => { noAd(e && (e.message || e.reason || e.code)); finish(false); });
+        await on('onRewardedVideoAdFailedToLoad', e => { noAd(e && (e.message || e.code)); finish(false); });
         await A.prepareRewardVideoAd({ adId: C.ADMOB.rewarded, isTesting: T });
         const r = await A.showRewardVideoAd(); if (r && (r.amount || r.type)) rewarded = true;
       } else {
@@ -58,7 +58,7 @@ const Ads = (() => {
         await A.prepareInterstitial({ adId: C.ADMOB.interstitial, isTesting: T });
         await A.showInterstitial();
       }
-    } catch (e) { console.warn('AdMob error', e); if (kind === 'rewarded') noAd(); finish(kind !== 'rewarded'); }
+    } catch (e) { console.warn('AdMob error', e); lastErr = String((e && e.message) || e); if (kind === 'rewarded') noAd(lastErr); finish(kind !== 'rewarded'); }
   }
 
   const show = (kind, done) => (C.AD_PROVIDER === 'admob' ? admobShow : mockAd)(kind, done);
@@ -71,21 +71,25 @@ const Ads = (() => {
       show('rewarded', ok => { Track.ev('ad_rewarded_' + (ok ? 'ok' : 'fail'), { placement }); lastInter = Date.now(); cb(ok); });
     },
     // Interstitial at natural breaks only. Always calls cb.
-    interstitial(cb) {
-      const ok = !Save.d.adsRemoved && Save.d.runs > C.INTERSTITIAL_AFTER_RUNS && Date.now() - lastInter > C.INTERSTITIAL_COOLDOWN_MS;
+    interstitial(cb, force) {
+      const ok = force || (!Save.d.adsRemoved && Save.d.runs >= C.INTERSTITIAL_AFTER_RUNS && Date.now() - lastInter > C.INTERSTITIAL_COOLDOWN_MS);
       if (!ok) return cb();
       Track.ev('ad_interstitial');
       show('interstitial', () => { lastInter = Date.now(); cb(); });
     },
     // Shows/hides the bottom banner (home screen only). Adds body.banner so the UI makes room for it.
     async banner(on) {
-      const A = cap(); on = !!on && !Save.d.adsRemoved;
+      const A = cap(); on = !!on && !Save.d.adsRemoved && C.BANNER_ENABLED;
       if (!A || C.AD_PROVIDER !== 'admob' || on === bannerOn) return;
       bannerOn = on; document.body.classList.toggle('banner', on);
       try { on ? await A.showBanner({ adId: C.ADMOB.banner, position: 'BOTTOM_CENTER', adSize: 'ADAPTIVE_BANNER', isTesting: C.ADMOB.testing }) : await A.removeBanner(); } catch (e) { bannerOn = false; document.body.classList.remove('banner'); }
     },
     init() { const A = cap(); if (A && C.AD_PROVIDER === 'admob') A.initialize({ initializeForTesting: C.ADMOB.testing }).catch(() => {}); },
     isNative: native,
+    status() {
+      const mode = C.AD_PROVIDER === 'admob' ? (native() ? '✅ Google AdMob — TEST ads (native app)' : '⚠ AdMob works in the Android app; web shows a mock ad') : '⚠ Mock ads (web/dev build)';
+      return mode + '<br><small style="opacity:.7">Last error: ' + (lastErr || 'none') + '</small>';
+    },
   };
 })();
 

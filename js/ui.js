@@ -102,20 +102,29 @@ const UI = (() => {
   }
   const hideLevelUp = closeModal;
   Game.pickWrap = null;
+  const ico = (on, i) => `<span class="ico ${on ? '' : 'off'}">${i}</span>`;
+  function pauseBtns() {
+    const st = Save.d.settings;
+    $('snd').innerHTML = `${ico(st.sound, st.sound ? '🔊' : '🔈')} Sound ${st.sound ? 'on' : 'off'}`;
+    $('mus').innerHTML = `${ico(st.music, '🎵')} Music ${st.music ? 'on' : 'off'}`;
+    $('snd').classList.toggle('muted', !st.sound); $('mus').classList.toggle('muted', !st.music);
+  }
   function pause(on) {
     if (!on) return closeModal();
     openModal(`<h2>PAUSED</h2><div class="col"><button class="btn" id="rs">▶ Resume</button>
-      <div class="row2"><button class="btn ghost small" id="snd">${Save.d.settings.sound ? '🔊 Sound on' : '🔇 Sound off'}</button><button class="btn ghost small" id="mus">${Save.d.settings.music ? '🎵 Music on' : '🎵 Music off'}</button></div>
+      <div class="row2"><button class="btn ghost small" id="snd"></button><button class="btn ghost small" id="mus"></button></div>
       <button class="btn ghost" id="qt">🏠 Quit run</button></div>`, 'pause');
+    pauseBtns();
     $('rs').onclick = () => { click(); Game.resume(); };
-    $('snd').onclick = () => { Save.d.settings.sound = !Save.d.settings.sound; Save.save(); pause(true); };
-    $('mus').onclick = () => { Save.d.settings.music = !Save.d.settings.music; Save.save(); Sfx.refresh(); pause(true); };
+    $('snd').onclick = () => { Save.d.settings.sound = !Save.d.settings.sound; Save.save(); pauseBtns(); if (Save.d.settings.sound) click(); };
+    $('mus').onclick = () => { Save.d.settings.music = !Save.d.settings.music; Save.save(); Sfx.refresh(); pauseBtns(); };
     $('qt').onclick = () => { closeModal(); const s = Game.summary(); Game.G.state = 'dead'; UI.showHud(false); UI.gameOver(s); };
   }
   function chest() { toast('🎁 Chest: +40🪙 +1💎'); }
 
   function gameOver(s) {
     goState = { s, doubled: false }; scr.classList.add('hidden');
+    if (s.time >= 10 && s.time > Save.d.bestTime) celebrate(s.time);
     Sfx.stopMusic();
     const reviveBtns = s.canRevive ? `<div class="row2"><button class="btn ad" id="rvad">📺 Revive</button><button class="btn gold" id="rvgem">💎 ${CONFIG.REVIVE_GEM_COST}</button></div>` : '';
     openModal(`<h2>💀 RUN OVER</h2>
@@ -129,9 +138,20 @@ const UI = (() => {
       $('rvgem').onclick = () => { if (Save.d.gems >= CONFIG.REVIVE_GEM_COST) { Save.d.gems -= CONFIG.REVIVE_GEM_COST; Save.save(); doRevive(); } else { toast('Not enough 💎'); } };
     }
     $('dbl').onclick = () => Ads.rewarded('double_coins', ok => { if (ok) { goState.doubled = true; $('earn').textContent = `+${s.coins * 2} 🪙 ×2!`; $('dbl').disabled = true; Sfx.play('coin'); } });
-    const leave = next => { Game.commit(s, goState.doubled ? s.coins : 0); closeModal(); Ads.interstitial(next); };
-    $('home').onclick = () => { click(); leave(() => { Game.toMenu(); go('home'); }); };
-    $('again').onclick = () => { click(); leave(() => Game.start()); };
+    const leave = () => { Game.commit(s, goState.doubled ? s.coins : 0); closeModal(); };
+    // No ad when returning to Home. Interstitial only between back-to-back runs.
+    $('home').onclick = () => { click(); leave(); Game.toMenu(); go('home'); };
+    $('again').onclick = () => { click(); leave(); Ads.interstitial(() => Game.start()); };
+  }
+  // 2-second "new best time" celebration: trophy, confetti, fanfare
+  function celebrate(sec) {
+    const old = $('celebrate'); if (old) old.remove();
+    const el = document.createElement('div'); el.id = 'celebrate';
+    const cols = ['#ffd23c', '#33ccff', '#ff44aa', '#3ddc84', '#aa66ff', '#ff8833'];
+    let conf = ''; for (let i = 0; i < 70; i++) conf += `<i style="left:${Math.random() * 100}%;background:${cols[i % cols.length]};animation-delay:${(Math.random() * 0.5).toFixed(2)}s;animation-duration:${(1.1 + Math.random() * 0.9).toFixed(2)}s;transform:rotate(${Math.random() * 360}deg)"></i>`;
+    el.innerHTML = `${conf}<div class="cel"><div class="trophy">🏆</div><div class="celtitle">NEW BEST TIME!</div><div class="celtime">${mmss(sec)}</div><div class="celsub">Amazing run, pilot! ⭐⭐⭐</div></div>`;
+    document.body.appendChild(el); Sfx.play('win'); Haptic([40, 30, 80]);
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 2000);
   }
   function doRevive() { closeModal(); Game.revive(); }
 
@@ -158,7 +178,7 @@ const UI = (() => {
       <div style="opacity:.7;font-size:13px">🏆 Best ${mmss(d.bestTime)} · ☠ ${d.bestKills} kills</div>
       ${window.__pwa ? '<button class="btn small ghost" id="inst">📲 Install app</button>' : ''}
     </div>`, 'home');
-    const pick = dir => { for (let k = 1; k <= ids.length; k++) { const id = ids[(i + dir * k + ids.length * 2) % ids.length]; if (d.chars.includes(id)) { d.char = id; Save.save(); Game.startDemo(); return home(); } } };
+    const pick = dir => { for (let k = 1; k <= ids.length; k++) { const id = ids[(i + dir * k + ids.length * 2) % ids.length]; if (d.chars.includes(id)) { d.char = id; Save.save(); Game.setDemoHero(); return home(); } } };
     $('pv').onclick = () => { click(); pick(-1); }; $('nx').onclick = () => { click(); pick(1); };
     $('play').onclick = () => { Sfx.init(); Sfx.play('click'); Sfx.refresh(); Game.start(); };
     if ($('inst')) $('inst').onclick = () => window.__pwa.prompt();
@@ -254,10 +274,15 @@ const UI = (() => {
   function settings() {
     const s = Save.d.settings;
     render(`<h2>Settings</h2><div class="scroll">
-      ${[['sound', '🔊 Sound effects'], ['music', '🎵 Music'], ['haptics', '📳 Vibration']].map(([k, n]) => `<div class="setrow"><span>${n}</span><div class="tog ${s[k] ? 'on' : ''}" data-t="${k}"></div></div>`).join('')}
+      ${[['sound', '🔊', 'Sound effects'], ['music', '🎵', 'Music'], ['haptics', '📳', 'Vibration']].map(([k, i, n]) => `<div class="setrow"><span>${ico(s[k], i)} ${n}</span><div class="tog ${s[k] ? 'on' : ''}" data-t="${k}"></div></div>`).join('')}
+      <h3>📢 ADS (TEST MODE)</h3>
+      <div class="card mis"><div class="ds" id="adstat">${Ads.status()}</div>
+        <div class="row2"><button class="btn ad small" id="tadr">Test rewarded</button><button class="btn ad small" id="tadi">Test interstitial</button></div></div>
       <div class="setrow"><span>Version</span><span style="opacity:.6">${CONFIG.VERSION}</span></div>
       <div class="col"><button class="btn ghost small" id="priv">Privacy policy</button><button class="btn ghost small" id="rst">Reset progress</button></div></div>`, 'settings');
     scr.querySelectorAll('[data-t]').forEach(t => t.onclick = () => { s[t.dataset.t] = !s[t.dataset.t]; Save.save(); Sfx.refresh(); Haptic(20); settings(); });
+    $('tadr').onclick = () => Ads.rewarded('test', ok => { toast(ok ? '✅ Reward earned' : '❌ No reward'); $('adstat') && ($('adstat').innerHTML = Ads.status()); });
+    $('tadi').onclick = () => Ads.interstitial(() => { toast('Interstitial closed'); $('adstat') && ($('adstat').innerHTML = Ads.status()); }, true);
     $('priv').onclick = () => privacy();
     $('rst').onclick = () => { if (confirm('Erase ALL progress?')) { Save.reset(); go('home'); } };
   }
@@ -282,9 +307,18 @@ const UI = (() => {
     if (cur !== 'home') return go('home');
     if (nativeApp) nativeApp.exitApp();
   }
+  let lastBack = 0;
+  const onBack = () => { const n = Date.now(); if (n - lastBack < 350) return; lastBack = n; back(); };
   if (nativeApp) {
-    nativeApp.addListener('backButton', back);
-    nativeApp.addListener('appStateChange', ({ isActive }) => { if (isActive) Sfx.resume(); else { Sfx.suspend(); Game.pause(); } });
+    try {
+      nativeApp.addListener('backButton', onBack);
+      nativeApp.addListener('appStateChange', ({ isActive }) => { if (isActive) Sfx.resume(); else { Game.pause(); Sfx.suspend(); } });
+    } catch (e) { console.warn('App plugin listeners failed', e); }
+  }
+  // Fallback for WebView/browsers: the system Back gesture pops history — we swallow it and run back().
+  if (Ads.isNative()) {
+    try { history.replaceState({ g: 1 }, ''); history.pushState({ g: 2 }, ''); } catch (e) {}
+    window.addEventListener('popstate', () => { try { history.pushState({ g: 2 }, ''); } catch (e) {} onBack(); });
   }
   window.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.classList.contains('show') && modalKind === 'privacy') closeModal(); });
 
