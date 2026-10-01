@@ -3,6 +3,8 @@
 One-thumb, portrait, 2–6 minute runs. Drag to dodge, your ship auto-fires, level up, build a weapon combo, beat bosses, spend coins on permanent upgrades & heroes.
 Tech: plain HTML5 Canvas + JS (no build step, no assets, 100% free) → PWA today, **Android APK/AAB via Capacitor** for Play Store + AdMob.
 
+![gameplay](screenshots/06-gameplay.png)
+
 ## Play / test
 ```bash
 npm run serve        # then open http://localhost:8080 on your phone (same Wi-Fi) or Chrome DevTools mobile mode

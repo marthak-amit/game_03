@@ -89,3 +89,4 @@ h3{margin:14px 0 8px;font-size:15px;letter-spacing:1px;opacity:.9}
 .adbox{background:#fff;color:#111;border-radius:20px;padding:24px;text-align:center;width:80%;max-width:340px}.adtag{font-size:11px;font-weight:800;letter-spacing:2px;color:#888}.adbig{font-size:70px}.adtimer{font-size:40px;font-weight:900}.adbox .btn{margin-top:10px;color:#fff}
 #rotate{display:none}
 @media (orientation:landscape) and (max-height:480px) and (pointer:coarse){#rotate{display:flex;position:fixed;inset:0;background:var(--bg);align-items:center;justify-content:center;z-index:99;font-size:20px;font-weight:700;text-align:center;padding:20px}}
+.row2 .btn{white-space:nowrap;padding-left:10px;padding-right:10px}
