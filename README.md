@@ -36,9 +36,13 @@ Everything lives in `js/config.js`:
 4. `privacy.html` — add your contact email, host it, paste the URL in Play Console.
 5. `capacitor.config.json` → set your real `appId`.
 
-## Build the Android app
+## Get the APK (no Android Studio needed)
+Push to GitHub → **Actions → Build Android APK** builds it for free. Download from the run's *Artifacts*, or from **Releases → apk-latest** and install on your phone (allow “install unknown apps”). This test APK uses fake ads/purchases.
+
+## Build the Android app (release, real ads)
 ```bash
 npm install
+npm i @capacitor-community/admob
 npm run android:add      # once
 npm run android:sync     # copies web build to www/ (switches to AdMob) and syncs
 npm run android:open     # Android Studio → Build → Generate Signed Bundle (AAB)

@@ -7,13 +7,14 @@
     "serve": "python3 -m http.server 8080",
     "build:web": "node scripts/build-www.js",
     "android:add": "npx cap add android",
-    "android:sync": "npm run build:web && npx cap sync android",
+    "android:sync": "node scripts/build-www.js && npx cap sync android",
     "android:open": "npx cap open android"
   },
   "dependencies": {
     "@capacitor/android": "^6.0.0",
-    "@capacitor/core": "^6.0.0",
-    "@capacitor-community/admob": "^6.0.0"
+    "@capacitor/core": "^6.0.0"
   },
-  "devDependencies": { "@capacitor/cli": "^6.0.0" }
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  }
 }

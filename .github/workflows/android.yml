@@ -1,0 +1,40 @@
+name: Build Android APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'claude/**']
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - name: Install Capacitor
+        run: npm install
+      - name: Build web assets (test ads)
+        run: AD_PROVIDER=mock node scripts/build-www.js
+      - name: Create Android project
+        run: |
+          npx cap add android
+          npx cap sync android
+          sed -i 's/android:name="\.MainActivity"/android:name=".MainActivity" android:screenOrientation="portrait"/' android/app/src/main/AndroidManifest.xml
+      - name: Build debug APK
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neon-swarm-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish as downloadable release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Neon Swarm test APK (latest)
+          body: Debug APK for phone testing. Uses TEST ads and TEST purchases only.
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          prerelease: true
