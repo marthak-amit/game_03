@@ -65,10 +65,26 @@ const UI = (() => {
   $('pausebtn').onclick = () => { click(); Game.pause(); };
 
   // ---------- modals ----------
-  function openModal(html) { modal.innerHTML = `<div class="panel">${html}</div>`; modal.classList.add('show'); }
-  function closeModal() { modal.classList.remove('show'); modal.innerHTML = ''; }
+  let modalKind = '';
+  function openModal(html, kind = '') { modalKind = kind; modal.innerHTML = `<div class="panel">${html}</div>`; modal.classList.add('show'); }
+  function closeModal() { clearInterval(lu.iv); modalKind = ''; modal.classList.remove('show'); modal.innerHTML = ''; }
 
-  function levelUp(choices) {
+  // ---------- level-up (with countdown: 15 s first time, 10 s afterwards; auto-picks at 0) ----------
+  const lu = { t: 0, total: 10, last: 0, paused: false, iv: 0, shown: -1 };
+  function luShow() {
+    const el = $('lunum'); if (!el) return;
+    const n = Math.max(0, Math.ceil(lu.t)); el.textContent = n; $('lufill').style.width = Math.max(0, lu.t / lu.total * 100) + '%';
+    $('lutimer').classList.toggle('warn', lu.t <= 4);
+  }
+  function luTick() {
+    const now = performance.now(), dt = Math.min(0.25, (now - lu.last) / 1000); lu.last = now;
+    if (lu.paused || document.hidden || $('adlayer').classList.contains('show')) return;
+    const before = Math.ceil(lu.t); lu.t -= dt; luShow();
+    if (lu.t <= 3.05 && Math.ceil(lu.t) !== before && lu.t > 0) { Sfx.play('tick'); Haptic(10); }
+    if (lu.t <= 0) { clearInterval(lu.iv); Game.pickRandom(); }
+  }
+
+  function levelUp(choices, secs) {
     const cards = choices.map((c, i) => {
       let ic, nm, ds, lv = '';
       if (c.kind === 'w') { const w = WEAPONS[c.id]; ic = w.icon; nm = w.name; ds = w.desc[c.lv - 1]; lv = c.lv === 1 ? 'NEW' : 'LV ' + c.lv; }
@@ -76,9 +92,13 @@ const UI = (() => {
       else if (c.id === 'heal') { ic = '💚'; nm = 'Repair Kit'; ds = 'Heal 30% HP'; } else { ic = '🪙'; nm = 'Coin Cache'; ds = '+50 coins this run'; }
       return `<button class="choice" data-i="${i}"><span class="ic">${ic}</span><span><div class="nm">${nm}</div><div class="ds">${ds}</div></span><span class="lv">${lv}</span></button>`;
     }).join('');
-    openModal(`<h2>⬆ LEVEL UP!</h2>${cards}${Ads.removed() && false ? '' : '<button class="btn ad small" id="reroll">📺 Reroll choices</button>'}`);
+    openModal(`<h2>⬆ LEVEL UP!</h2>
+      <div class="lutimer" id="lutimer"><div class="lubar"><i id="lufill"></i></div><div class="lunum" id="lunum">${Math.ceil(lu.t)}</div></div>
+      ${cards}<button class="btn ad small" id="reroll">📺 Reroll choices</button>`, 'levelup');
     modal.querySelectorAll('.choice').forEach(b => b.onclick = () => { click(); Game.pick(+b.dataset.i); });
-    $('reroll').onclick = () => Ads.rewarded('reroll', ok => { if (ok) Game.reroll(); });
+    $('reroll').onclick = () => { lu.paused = true; Ads.rewarded('reroll', ok => { lu.paused = false; lu.last = performance.now(); if (ok) Game.reroll(); }); };
+    if (secs) { lu.total = lu.t = secs; lu.last = performance.now(); lu.paused = false; clearInterval(lu.iv); lu.iv = setInterval(luTick, 100); }
+    luShow();
   }
   const hideLevelUp = closeModal;
   Game.pickWrap = null;
@@ -86,7 +106,7 @@ const UI = (() => {
     if (!on) return closeModal();
     openModal(`<h2>PAUSED</h2><div class="col"><button class="btn" id="rs">▶ Resume</button>
       <div class="row2"><button class="btn ghost small" id="snd">${Save.d.settings.sound ? '🔊 Sound on' : '🔇 Sound off'}</button><button class="btn ghost small" id="mus">${Save.d.settings.music ? '🎵 Music on' : '🎵 Music off'}</button></div>
-      <button class="btn ghost" id="qt">🏠 Quit run</button></div>`);
+      <button class="btn ghost" id="qt">🏠 Quit run</button></div>`, 'pause');
     $('rs').onclick = () => { click(); Game.resume(); };
     $('snd').onclick = () => { Save.d.settings.sound = !Save.d.settings.sound; Save.save(); pause(true); };
     $('mus').onclick = () => { Save.d.settings.music = !Save.d.settings.music; Save.save(); Sfx.refresh(); pause(true); };
@@ -103,7 +123,7 @@ const UI = (() => {
       ${s.time > Save.d.bestTime ? '<div style="color:var(--g);font-weight:800">🏆 NEW BEST TIME!</div>' : `<div style="opacity:.6;font-size:12px">Best: ${mmss(Save.d.bestTime)}</div>`}
       <div class="earn" id="earn">+${s.coins} 🪙</div>
       <div class="col">${reviveBtns}<button class="btn ad" id="dbl">📺 Double coins ×2</button>
-      <div class="row2"><button class="btn ghost" id="home">🏠 Home</button><button class="btn" id="again">▶ Play again</button></div></div>`);
+      <div class="row2"><button class="btn ghost" id="home">🏠 Home</button><button class="btn" id="again">▶ Play again</button></div></div>`, 'over');
     if (s.canRevive) {
       $('rvad').onclick = () => Ads.rewarded('revive', ok => { if (ok) doRevive(); });
       $('rvgem').onclick = () => { if (Save.d.gems >= CONFIG.REVIVE_GEM_COST) { Save.d.gems -= CONFIG.REVIVE_GEM_COST; Save.save(); doRevive(); } else { toast('Not enough 💎'); } };
@@ -124,7 +144,7 @@ const UI = (() => {
     scr.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { click(); go(b.dataset.go); });
   }
   function go(name) {
-    cur = name; Sfx.refresh(); Ads.banner(name === 'home');
+    cur = name; scr.dataset.view = name; Sfx.refresh(); Ads.banner(name === 'home');
     ({ home, up, heroes, rewards, shop, settings })[name]();
   }
 
@@ -132,13 +152,13 @@ const UI = (() => {
     const d = Save.d, h = HEROES[d.char], ids = Object.keys(HEROES), i = ids.indexOf(d.char);
     render(`<div class="home">
       <div><h1 class="logo">NEON<br>SWARM</h1><div class="sub">SURVIVE THE HORDE</div></div>
-      <div class="heropick"><button class="iconbtn" id="pv">◀</button><div>${shipSvg(h.color)}<div class="heroname" style="color:${h.color}">${h.name}</div></div><button class="iconbtn" id="nx">▶</button></div>
+      <div class="heropick"><button class="iconbtn" id="pv">◀</button><div class="heroname" style="color:${h.color};min-width:120px">${h.name}</div><button class="iconbtn" id="nx">▶</button></div>
       <div class="herodesc">${h.desc}</div>
       <button class="btn play" id="play">PLAY</button>
       <div style="opacity:.7;font-size:13px">🏆 Best ${mmss(d.bestTime)} · ☠ ${d.bestKills} kills</div>
       ${window.__pwa ? '<button class="btn small ghost" id="inst">📲 Install app</button>' : ''}
     </div>`, 'home');
-    const pick = dir => { for (let k = 1; k <= ids.length; k++) { const id = ids[(i + dir * k + ids.length * 2) % ids.length]; if (d.chars.includes(id)) { d.char = id; Save.save(); return home(); } } };
+    const pick = dir => { for (let k = 1; k <= ids.length; k++) { const id = ids[(i + dir * k + ids.length * 2) % ids.length]; if (d.chars.includes(id)) { d.char = id; Save.save(); Game.startDemo(); return home(); } } };
     $('pv').onclick = () => { click(); pick(-1); }; $('nx').onclick = () => { click(); pick(1); };
     $('play').onclick = () => { Sfx.init(); Sfx.play('click'); Sfx.refresh(); Game.start(); };
     if ($('inst')) $('inst').onclick = () => window.__pwa.prompt();
@@ -220,6 +240,17 @@ const UI = (() => {
     scr.querySelectorAll('[data-cg]').forEach(b => b.onclick = () => { const [c, g] = b.dataset.cg.split(':').map(Number); if (d.gems < g) return toast('Not enough 💎'); d.gems -= g; d.coins += c; Save.save(); Sfx.play('coin'); shop(); });
   }
 
+  function privacy() {
+    openModal(`<h2>🔒 Privacy Policy</h2><div class="policy">
+      <p><b>Neon Swarm</b> stores your game progress only on your device. We do not collect personal information ourselves.</p>
+      <p><b>Ads.</b> The game shows ads through Google AdMob, which may use your device's advertising ID to show ads and measure performance. You can reset your advertising ID or opt out of personalized ads in your phone's Settings → Google → Ads.</p>
+      <p><b>Purchases.</b> In-app purchases are processed by Google Play. We never see your payment details.</p>
+      <p><b>Children.</b> The game is not directed at children under 13.</p>
+      <p><b>Contact.</b> Add your support email here before publishing.</p></div>
+      <button class="btn" id="pvclose">← Back</button>`, 'privacy');
+    $('pvclose').onclick = () => { click(); closeModal(); };
+  }
+
   function settings() {
     const s = Save.d.settings;
     render(`<h2>Settings</h2><div class="scroll">
@@ -227,7 +258,7 @@ const UI = (() => {
       <div class="setrow"><span>Version</span><span style="opacity:.6">${CONFIG.VERSION}</span></div>
       <div class="col"><button class="btn ghost small" id="priv">Privacy policy</button><button class="btn ghost small" id="rst">Reset progress</button></div></div>`, 'settings');
     scr.querySelectorAll('[data-t]').forEach(t => t.onclick = () => { s[t.dataset.t] = !s[t.dataset.t]; Save.save(); Sfx.refresh(); Haptic(20); settings(); });
-    $('priv').onclick = () => window.open('privacy.html', '_blank');
+    $('priv').onclick = () => privacy();
     $('rst').onclick = () => { if (confirm('Erase ALL progress?')) { Save.reset(); go('home'); } };
   }
 
@@ -237,7 +268,27 @@ const UI = (() => {
   document.addEventListener('gesturestart', e => e.preventDefault());
   document.addEventListener('touchmove', e => { if (!e.target.closest('.scroll,.panel')) e.preventDefault(); }, { passive: false });
 
-  Ads.init(); Sfx.refresh(); go('home');
+  // ---------- Android back button / lock-screen handling (Capacitor) ----------
+  const nativeApp = Ads.isNative() ? (() => { try { return window.Capacitor.registerPlugin('App'); } catch (e) { return null; } })() : null;
+  function back() {
+    if ($('adlayer').classList.contains('show')) return;
+    if (modal.classList.contains('show')) {
+      if (modalKind === 'pause') Game.resume(); else if (modalKind === 'privacy') closeModal();
+      return;                                         // level-up / game-over: must choose
+    }
+    const st = Game.G.state;
+    if (st === 'play') return Game.pause();
+    if (st === 'dead' || st === 'levelup') return;
+    if (cur !== 'home') return go('home');
+    if (nativeApp) nativeApp.exitApp();
+  }
+  if (nativeApp) {
+    nativeApp.addListener('backButton', back);
+    nativeApp.addListener('appStateChange', ({ isActive }) => { if (isActive) Sfx.resume(); else { Sfx.suspend(); Game.pause(); } });
+  }
+  window.addEventListener('keydown', e => { if (e.key === 'Escape' && modal.classList.contains('show') && modalKind === 'privacy') closeModal(); });
+
+  Ads.init(); Sfx.setMode('menu'); Game.startDemo(); Sfx.refresh(); go('home');
   // browsers need a gesture before audio starts
   window.addEventListener('pointerdown', () => { Sfx.init(); Sfx.refresh(); }, { once: true });
   return { showHud, hud, banner, toast, levelUp, hideLevelUp, pause, gameOver, chest, go };

@@ -16,13 +16,17 @@ jobs:
         with: { distribution: temurin, java-version: 17 }
       - name: Install Capacitor
         run: npm install
-      - name: Build web assets (test ads)
-        run: AD_PROVIDER=mock node scripts/build-www.js
+      - name: Build web assets (Google TEST ads)
+        run: AD_PROVIDER=admob node scripts/build-www.js
       - name: Create Android project
         run: |
           npx cap add android
           npx cap sync android
-          sed -i 's/android:name="\.MainActivity"/android:name=".MainActivity" android:screenOrientation="portrait"/' android/app/src/main/AndroidManifest.xml
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:name="\.MainActivity"/android:name=".MainActivity" android:screenOrientation="portrait"/' $M
+          # Google's official TEST AdMob app id (replace with yours for release)
+          sed -i 's#</application>#<meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/></application>#' $M
+          grep -n "APPLICATION_ID\|screenOrientation" $M
       - name: Build debug APK
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
@@ -35,6 +39,6 @@ jobs:
         with:
           tag_name: apk-latest
           name: Neon Swarm test APK (latest)
-          body: Debug APK for phone testing. Uses TEST ads and TEST purchases only.
+          body: Debug APK for phone testing. Shows Google TEST ads; purchases are fake.
           files: android/app/build/outputs/apk/debug/app-debug.apk
           prerelease: true

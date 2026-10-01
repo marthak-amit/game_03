@@ -90,3 +90,19 @@ h3{margin:14px 0 8px;font-size:15px;letter-spacing:1px;opacity:.9}
 #rotate{display:none}
 @media (orientation:landscape) and (max-height:480px) and (pointer:coarse){#rotate{display:flex;position:fixed;inset:0;background:var(--bg);align-items:center;justify-content:center;z-index:99;font-size:20px;font-weight:700;text-align:center;padding:20px}}
 .row2 .btn{white-space:nowrap;padding-left:10px;padding-right:10px}
+
+/* ---- v1.1 ---- */
+#screen[data-view=home]{background:linear-gradient(180deg,rgba(7,6,26,.05) 0%,rgba(7,6,26,0) 45%,rgba(7,6,26,.65) 100%)}
+body.banner #screen{padding-bottom:calc(var(--sab) + 70px)}
+.lutimer{display:flex;align-items:center;gap:12px;margin:2px 0 12px}
+.lubar{flex:1;height:12px;border-radius:7px;background:rgba(255,255,255,.15);overflow:hidden}
+.lubar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#33ccff,#7c5cff);transition:width .1s linear}
+.lunum{width:46px;height:46px;border-radius:50%;border:3px solid #33ccff;font-size:24px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 0 14px #33ccff66}
+.lutimer.warn .lubar i{background:linear-gradient(90deg,#ff3355,#ff8855)}
+.lutimer.warn .lunum{border-color:#ff3355;color:#ff6680;box-shadow:0 0 16px #ff335599;animation:pulse .5s infinite}
+.policy{text-align:left;font-size:14px;line-height:1.5;opacity:.92;margin-bottom:14px;max-height:55vh;overflow-y:auto;touch-action:pan-y}
+h1.logo{animation:logoglow 3s ease-in-out infinite}
+@keyframes logoglow{50%{filter:drop-shadow(0 0 26px #33ccffcc)}}
+.heropick .ship{width:84px;height:84px;animation:floaty 2.4s ease-in-out infinite}
+@keyframes floaty{50%{transform:translateY(-8px) rotate(-4deg)}}
+.home{gap:12px}

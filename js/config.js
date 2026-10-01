@@ -13,6 +13,7 @@ window.CONFIG = {
 
   // Google's official TEST ids. Replace with your real ones later.
   ADMOB: {
+    testing: true,            // set false ONLY with your real ad unit ids
     appId: 'ca-app-pub-3940256099942544~3347511713',
     rewarded: 'ca-app-pub-3940256099942544/5224354917',
     interstitial: 'ca-app-pub-3940256099942544/1033173712',

@@ -37,12 +37,11 @@ Everything lives in `js/config.js`:
 5. `capacitor.config.json` → set your real `appId`.
 
 ## Get the APK (no Android Studio needed)
-Push to GitHub → **Actions → Build Android APK** builds it for free. Download from the run's *Artifacts*, or from **Releases → apk-latest** and install on your phone (allow “install unknown apps”). This test APK uses fake ads/purchases.
+Push to GitHub → **Actions → Build Android APK** builds it for free. Download from the run's *Artifacts*, or from **Releases → apk-latest** and install on your phone (allow “install unknown apps”). This test APK shows real **Google AdMob TEST ads** (safe, no real money); purchases are fake.
 
 ## Build the Android app (release, real ads)
 ```bash
 npm install
-npm i @capacitor-community/admob
 npm run android:add      # once
 npm run android:sync     # copies web build to www/ (switches to AdMob) and syncs
 npm run android:open     # Android Studio → Build → Generate Signed Bundle (AAB)

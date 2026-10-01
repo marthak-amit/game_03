@@ -8,7 +8,13 @@ const Track = { ev(name, p) { try { console.debug('[track]', name, p || ''); win
 const Ads = (() => {
   let lastInter = Date.now();   // first interstitial can't appear instantly
   const C = CONFIG;
-  const cap = () => (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob) || null;
+  const plugins = {};
+  const native = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const cap = () => { // returns the AdMob plugin proxy on a native build, else null
+    if (!native()) return null;
+    try { return plugins.AdMob || (plugins.AdMob = window.Capacitor.registerPlugin('AdMob')); } catch (e) { return null; }
+  };
+  let bannerOn = false;
 
   // ---------- Mock provider (dev / web demo) ----------
   function mockAd(kind, done) {
@@ -30,22 +36,29 @@ const Ads = (() => {
     }, 1000);
   }
 
-  // ---------- AdMob provider (Capacitor build) ----------
+  // ---------- AdMob provider (Capacitor build, uses Google TEST ads while ADMOB.testing = true) ----------
   async function admobShow(kind, done) {
     const A = cap(); if (!A) return mockAd(kind, done);
+    const T = C.ADMOB.testing, handles = []; let finished = false, rewarded = false;
+    const finish = ok => { if (finished) return; finished = true; handles.forEach(h => { try { h.remove(); } catch (e) {} }); setTimeout(() => done(ok), 50); };
+    const on = async (ev, fn) => handles.push(await A.addListener(ev, fn));
+    const noAd = () => { UI.toast('Ad not available right now. Try again in a moment.'); };
     try {
       if (kind === 'rewarded') {
-        await A.prepareRewardVideoAd({ adId: C.ADMOB.rewarded });
-        let rewarded = false;
-        const h1 = await A.addListener('onRewardedVideoAdReward', () => { rewarded = true; });
-        const h2 = await A.addListener('onRewardedVideoAdDismissed', () => { h1.remove(); h2.remove(); done(rewarded); });
-        await A.showRewardVideoAd();
+        await on('onRewardedVideoAdReward', () => { rewarded = true; });
+        await on('onRewardedVideoAdDismissed', () => finish(rewarded));
+        await on('onRewardedVideoAdFailedToShow', () => { noAd(); finish(false); });
+        await on('onRewardedVideoAdFailedToLoad', () => { noAd(); finish(false); });
+        await A.prepareRewardVideoAd({ adId: C.ADMOB.rewarded, isTesting: T });
+        const r = await A.showRewardVideoAd(); if (r && (r.amount || r.type)) rewarded = true;
       } else {
-        await A.prepareInterstitial({ adId: C.ADMOB.interstitial });
-        const h = await A.addListener('onInterstitialAdDismissed', () => { h.remove(); done(true); });
+        await on('interstitialAdDismissed', () => finish(true));
+        await on('interstitialAdFailedToShow', () => finish(true));
+        await on('interstitialAdFailedToLoad', () => finish(true));
+        await A.prepareInterstitial({ adId: C.ADMOB.interstitial, isTesting: T });
         await A.showInterstitial();
       }
-    } catch (e) { console.warn('AdMob failed', e); done(kind !== 'rewarded'); }
+    } catch (e) { console.warn('AdMob error', e); if (kind === 'rewarded') noAd(); finish(kind !== 'rewarded'); }
   }
 
   const show = (kind, done) => (C.AD_PROVIDER === 'admob' ? admobShow : mockAd)(kind, done);
@@ -64,11 +77,15 @@ const Ads = (() => {
       Track.ev('ad_interstitial');
       show('interstitial', () => { lastInter = Date.now(); cb(); });
     },
+    // Shows/hides the bottom banner (home screen only). Adds body.banner so the UI makes room for it.
     async banner(on) {
-      const A = cap(); if (!A || C.AD_PROVIDER !== 'admob' || Save.d.adsRemoved) return;
-      try { on ? await A.showBanner({ adId: C.ADMOB.banner, position: 'BOTTOM_CENTER', adSize: 'ADAPTIVE_BANNER' }) : await A.hideBanner(); } catch (e) {}
+      const A = cap(); on = !!on && !Save.d.adsRemoved;
+      if (!A || C.AD_PROVIDER !== 'admob' || on === bannerOn) return;
+      bannerOn = on; document.body.classList.toggle('banner', on);
+      try { on ? await A.showBanner({ adId: C.ADMOB.banner, position: 'BOTTOM_CENTER', adSize: 'ADAPTIVE_BANNER', isTesting: C.ADMOB.testing }) : await A.removeBanner(); } catch (e) { bannerOn = false; document.body.classList.remove('banner'); }
     },
-    init() { const A = cap(); if (A && C.AD_PROVIDER === 'admob') A.initialize({}).catch(() => {}); },
+    init() { const A = cap(); if (A && C.AD_PROVIDER === 'admob') A.initialize({ initializeForTesting: C.ADMOB.testing }).catch(() => {}); },
+    isNative: native,
   };
 })();
 

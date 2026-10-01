@@ -37,7 +37,7 @@ const Game = (() => {
   // ---------- state ----------
   const G = { state: 'menu', t: 0 };
   let P, enemies, bullets, ebullets, gems, picks, parts, texts, fx;
-  let cam = { x: 0, y: 0 }, shake = 0, flash = 0, menuT = 0;
+  let cam = { x: 0, y: 0 }, shake = 0, flash = 0, menuT = 0, intro = 0;
   const grid = new Map(), GC = 64, tmp = [];
   const input = { jx: 0, jy: 0, keys: {}, touch: null };
   const gk = (cx, cy) => cx * 100003 + cy;
@@ -63,7 +63,7 @@ const Game = (() => {
   }
 
   // ---------- run setup ----------
-  function startRun() {
+  function startRun(demo) {
     const d = Save.d, hero = HEROES[d.char], up = d.up;
     const m = hero.mods;
     P = {
@@ -77,14 +77,18 @@ const Game = (() => {
     };
     P.hp = P.maxHp;
     P.w[hero.weapon] = { lv: 1, cd: 0.3 };
+    if (demo) { P.w = { blaster: { lv: 3, cd: 0 }, orbit: { lv: 3, cd: 0 }, lightning: { lv: 2, cd: 0.5 }, pulse: { lv: 2, cd: 1.5 } }; P.p = { might: 3, haste: 2 }; P.col = hero.color; }
     enemies = []; bullets = []; ebullets = []; gems = []; picks = []; parts = []; texts = []; fx = [];
     Object.assign(G, {
-      state: 'play', t: 0, kills: 0, coins: 0, bosses: 0, spawnT: 0, hordeT: 40, bossT: 90, bossN: 0, boss: null,
-      revived: false, pending: 0, choices: null, combo: 0, comboT: 0, tipT: Save.d.tutorial ? 0 : 5,
+      state: demo ? 'menu' : 'play', demo: !!demo, luN: 0, vac: 0, t: demo ? 55 : 0, kills: 0, coins: 0, bosses: 0, spawnT: 0, hordeT: demo ? 1e9 : 40, bossT: demo ? 1e9 : 90, bossN: 0, boss: null,
+      revived: false, pending: 0, choices: null, combo: 0, comboT: 0, tipT: demo || Save.d.tutorial ? 0 : 5,
       freeRevive: up.rev > 0,
     });
     cam.x = 0; cam.y = 0; shake = 0; flash = 0; input.touch = null;
-    UI.showHud(true); Sfx.refresh();
+    Sfx.mute(!!demo);
+    if (demo) { for (let i = 0; i < 60; i++) { const a = rnd(0, TAU), d = rnd(110, 480); spawnEnemy(pickType(), Math.cos(a) * d, Math.sin(a) * d); } return; }
+    intro = 1; flash = 0.45; Sfx.setMode('play'); Sfx.refresh(); Sfx.play('start'); Haptic(30);
+    UI.showHud(true); UI.banner('⚡ SURVIVE!');
     Track.ev('run_start', { hero: d.char });
   }
 
@@ -114,7 +118,7 @@ const Game = (() => {
     for (let i = 0; i < n && parts.length < 450; i++) { const a = rnd(0, TAU), s = rnd(sp * 0.3, sp); parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: life * rnd(0.6, 1), max: life, size: rnd(size * 0.5, size), col }); }
   }
   function text(x, y, txt, col = '#fff', big = false) { if (texts.length < 36) texts.push({ x, y, txt, col, life: 0.7, big }); }
-  function addShake(v) { shake = Math.min(14, Math.max(shake, v)); }
+  function addShake(v) { if (G.demo) return; shake = Math.min(14, Math.max(shake, v)); }
 
   // ---------- enemies ----------
   const hs = () => 1 + G.t / 45 * 0.3 + (G.t / 60) ** 2 * 0.05;
@@ -134,10 +138,10 @@ const Game = (() => {
   }
   function spawnLogic(dt) {
     G.spawnT -= dt;
-    const target = Math.min(240, 10 + G.t * 0.55);
+    const target = G.demo ? 95 + Math.sin(G.t * 0.4) * 20 : Math.min(240, 10 + G.t * 0.55);
     if (G.spawnT <= 0 && enemies.length < target) {
-      G.spawnT = 0.28;
-      const n = 1 + Math.floor(G.t / 70);
+      G.spawnT = G.demo ? 0.12 : 0.28;
+      const n = G.demo ? 2 : 1 + Math.floor(G.t / 70);
       for (let i = 0; i < n; i++) {
         const a = rnd(0, TAU), d = Math.hypot(W, H) / Z / 2 + 40;
         spawnEnemy(pickType(), P.x + Math.cos(a) * d, P.y + Math.sin(a) * d);
@@ -178,7 +182,7 @@ const Game = (() => {
     }
   }
   function damagePlayer(n) {
-    if (P.inv > 0 || G.state !== 'play') return;
+    if (G.demo || P.inv > 0 || G.state !== 'play') return;
     n = Math.max(1, Math.round(n - P.armor));
     P.hp -= n; P.inv = 0.45; P.hitFlash = 0.25; addShake(6); Sfx.play('hurt'); Haptic(30);
     text(P.x, P.y - 16, '-' + n, '#f44', true);
@@ -217,6 +221,7 @@ const Game = (() => {
 
   // ---------- leveling ----------
   function addXp(v) {
+    if (G.demo) return;
     P.xp += v * P.xpMul;
     while (P.xp >= P.xpNeed) { P.xp -= P.xpNeed; P.lvl++; P.xpNeed = Math.round(4 + P.lvl * 3.2 + P.lvl * P.lvl * 0.3); G.pending++; }
     if (G.pending > 0 && G.state === 'play') openLevelUp();
@@ -237,7 +242,7 @@ const Game = (() => {
   }
   function openLevelUp() {
     G.state = 'levelup'; G.pending--; G.choices = buildChoices();
-    Sfx.play('levelup'); Haptic(25); UI.levelUp(G.choices);
+    G.luN++; Sfx.play('levelup'); Haptic(25); UI.levelUp(G.choices, G.luN === 1 ? 15 : 10);
   }
   function applyChoice(c) {
     if (c.kind === 'w') { if (P.w[c.id]) P.w[c.id].lv = c.lv; else P.w[c.id] = { lv: 1, cd: 0.2 }; }
@@ -301,11 +306,23 @@ const Game = (() => {
     }
   }
 
+  // attract-mode pilot: circles, dodges the swarm, hunts gems
+  function demoVec() {
+    const tx = Math.cos(G.t * 0.35) * 150, ty = Math.sin(G.t * 0.27) * 230;
+    let fx = clamp((tx - P.x) / 90, -1, 1) * 0.8, fy = clamp((ty - P.y) / 90, -1, 1) * 0.8;
+    for (const e of enemies) { if (e.dead) continue; const dx = P.x - e.x, dy = P.y - e.y, d = Math.hypot(dx, dy) || 1; if (d < 150) { const w = (150 - d) / d / d * 40; fx += dx * w; fy += dy * w; } }
+    let bd = 260, tg = null; for (const g of gems) { const d = Math.hypot(g.x - P.x, g.y - P.y); if (d < bd) { bd = d; tg = g; } }
+    if (tg) { fx += (tg.x - P.x) / bd * 0.7; fy += (tg.y - P.y) / bd * 0.7; }
+    const l = Math.hypot(fx, fy); return l > 0.01 ? [fx / Math.max(l, 1) , fy / Math.max(l, 1)] : [0, 0];
+  }
+
   // ---------- update ----------
   function update(dt) {
     G.t += dt;
     if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
-    const [mx, my] = moveVec();
+    let [mx, my] = G.demo ? demoVec() : moveVec();
+    if (G.demo && G.t > 130) G.t = 55;
+    if (!G.demo) Sfx.setIntensity(G.t);
     P.x += mx * P.spd * dt; P.y += my * P.spd * dt;
     if (mx || my) P.ang = Math.atan2(my, mx);
     if (P.inv > 0) P.inv -= dt; if (P.hitFlash > 0) P.hitFlash -= dt;
@@ -397,7 +414,7 @@ const Game = (() => {
     parts = parts.filter(p => p.life > 0); texts = texts.filter(t => t.life > 0); fx = fx.filter(f => f.t > 0);
     if (G.vac === undefined) G.vac = 0;
     if (G.tipT > 0) G.tipT -= dt;
-    UI.hud(P, G);
+    if (!G.demo) UI.hud(P, G);
   }
 
   // ---------- render ----------
@@ -421,11 +438,13 @@ const Game = (() => {
   }
   function render() {
     ctx.setTransform(DPR * Z, 0, 0, DPR * Z, 0, 0);
-    const playing = G.state !== 'menu';
+    const playing = G.state !== 'menu' || G.demo;
     const sx = shake ? rnd(-shake, shake) : 0, sy = shake ? rnd(-shake, shake) : 0;
     const cx = playing ? cam.x : menuT * 25, cy = playing ? cam.y : menuT * 12;
+    ctx.save();
+    if (intro > 0) { const k = 1 + 0.5 * intro * intro; ctx.translate(W / Z / 2, H / Z / 2); ctx.scale(k, k); ctx.translate(-W / Z / 2, -H / Z / 2); }
     drawBg(cx, cy);
-    if (!playing) { return; }
+    if (!playing) { ctx.restore(); return; }
     ctx.save(); ctx.translate(W / Z / 2 - cam.x + sx, H / Z / 2 - cam.y + sy);
     const vx0 = cam.x - W / Z / 2 - 60, vx1 = cam.x + W / Z / 2 + 60, vy0 = cam.y - H / Z / 2 - 60, vy1 = cam.y + H / Z / 2 + 60;
     const vis = (x, y) => x > vx0 && x < vx1 && y > vy0 && y < vy1;
@@ -474,7 +493,7 @@ const Game = (() => {
     ctx.textAlign = 'center';
     for (const t of texts) { ctx.globalAlpha = clamp(t.life * 2, 0, 1); ctx.fillStyle = t.col; ctx.font = (t.big ? 'bold 15px' : 'bold 11px') + ' sans-serif'; ctx.fillText(t.txt, t.x, t.y); }
     ctx.globalAlpha = 1;
-    ctx.restore();
+    ctx.restore(); ctx.restore();
     // screen-space: joystick, damage vignette, tip
     if (input.touch && G.state === 'play') {
       const t = input.touch, a = Math.atan2(t.y - t.oy, t.x - t.ox), d = Math.min(55, Math.hypot(t.x - t.ox, t.y - t.oy));
@@ -491,7 +510,11 @@ const Game = (() => {
   function frame(now) {
     requestAnimationFrame(frame);
     let dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (G.state === 'menu') menuT += dt;
+    if (G.state === 'menu') {
+      menuT += dt;
+      if (G.demo && P && !document.hidden) { update(dt); cam.x += (P.x - cam.x) * Math.min(1, dt * 1.1); cam.y += (P.y - cam.y) * Math.min(1, dt * 1.1); }
+    }
+    if (intro > 0) intro = Math.max(0, intro - dt * 1.1);
     if (G.state === 'play' || G.state === 'dead') {
       if (G.state === 'dead') { dt *= 0.4; G.t += 0; }
       if (G.state === 'play') update(dt);
@@ -506,14 +529,16 @@ const Game = (() => {
 
   return {
     G, get P() { return P; }, dbg() { return { P, enemies, gems }; },
-    start() { Sfx.init(); startRun(); },
+    start() { Sfx.init(); startRun(false); },
+    startDemo() { startRun(true); },
     pause() { if (G.state === 'play') { G.state = 'paused'; input.touch = null; UI.pause(true); } },
     resume() { if (G.state === 'paused') { G.state = 'play'; UI.pause(false); } },
     togglePause() { G.state === 'play' ? Game.pause() : G.state === 'paused' && Game.resume(); },
     pick(i) { applyChoice(G.choices[i]); G.choices = null; G.state = 'play'; if (G.pending > 0) openLevelUp(); else UI.hideLevelUp(); },
-    reroll() { G.choices = buildChoices(); UI.levelUp(G.choices); },
-    summary, commit, revive() { revive(); }, quit() { G.state = 'menu'; UI.showHud(false); },
+    reroll() { G.choices = buildChoices(); UI.levelUp(G.choices, null); },
+    pickRandom() { if (G.state === 'levelup' && G.choices) Game.pick(Math.floor(Math.random() * G.choices.length)); },
+    summary, commit, revive() { revive(); }, quit() { Game.toMenu(); },
     addCoins(n) { G.coins += n; },
-    toMenu() { G.state = 'menu'; UI.showHud(false); },
+    toMenu() { Sfx.setMode('menu'); UI.showHud(false); startRun(true); },
   };
 })();
